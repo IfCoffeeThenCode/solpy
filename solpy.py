@@ -11,7 +11,7 @@ class body:
         self.new_acceleration = None
 
 def influence(b1, bodies, G):
-    A = 0
+    A = np.zeros(3)
     for b2 in bodies:
         if b2 != b1:
             R = b2.position - b1.position
@@ -19,11 +19,9 @@ def influence(b1, bodies, G):
     return G * A
 
 def simulate_leapfrog(bodies, steps, dt, G):
-    for b in bodies:
-        b.trace = np.zeros(shape=(steps, 2))
-    for i in xrange(steps):
-        for b in bodies:
-            b.trace[i] = b.position[:2]
+    init_trace(bodies, steps)
+    for step in xrange(steps):
+        add_trace(bodies, step)
         for b in bodies:
             b.acceleration = influence(b, bodies, G)
         for b in bodies:
@@ -36,7 +34,6 @@ def simulate_leapfrog(bodies, steps, dt, G):
             b.acceleration = b.new_acceleration
 
 def center_offset(bodies):
-    """Calculates X and V offset for central body"""
     C = np.zeros(3)
     V = np.zeros(3)
     M = 0
@@ -46,17 +43,26 @@ def center_offset(bodies):
         V += b.mass * b.velocity
     return - C / M, - V / M
 
-def draw_traces(bodies):
+def init_trace(bodies, steps):
     for b in bodies:
-        circle = plt.Circle((b.trace[0, 0], b.trace[0, 1]), radius=b.radius, fc='y')
+        b.trace = np.zeros(shape=(2, steps))
+
+def add_trace(bodies, step):
+    for b in bodies:
+            b.trace[:, step] = b.position[:2]
+
+def draw_traces(bodies, bare):
+    for b in bodies:
+        circle = plt.Circle((b.trace[0, 0], b.trace[1, 0]), radius=b.radius, fc='y')
         plt.gca().add_patch(circle)
     for b in bodies:
-        plt.plot(b.trace[:,0], b.trace[:,1])
+        plt.plot(b.trace[0], b.trace[1])
     plt.axis('scaled')
-    #plt.axis('off')
-    #frame1 = plt.gca()
-    #frame1.axes.get_xaxis().set_visible(False)
-    #frame1.axes.get_yaxis().set_visible(False)
+    if bare:
+        plt.axis('off')
+        frame1 = plt.gca()
+        frame1.axes.get_xaxis().set_visible(False)
+        frame1.axes.get_yaxis().set_visible(False)
     plt.grid()
     plt.savefig("/home/dv/ipy/output-%s.png" % int(time.time()), dpi=300)
     plt.show()
@@ -72,23 +78,24 @@ def random_bodies():
     return 0.001, 1, bodies
 
 def earth_and_moon():
-    ship_phase = math.pi*1.53
-    ship_orbit_height = 1e8
-    ship_vel = 2506.265
+    ship_phase = math.pi*1.47
+    ship_orbit_height = 9e6
+    ship_vel = 9320
     earth = body([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], 5.98e+24, 6.378100e+6)
     moon = body([earth.position[0] + 3.84399e8, 0.0, 0.0], \
                 [0.0, 1022 + earth.velocity[1], 0.0], 7.3477e22, 0.173814e6)
+
+    bodies = [earth, moon]
+    C, V = center_offset(bodies)
+    earth.position += C
+    earth.velocity += V
+
     ship = body([earth.position[0] + ship_orbit_height * math.cos(ship_phase), \
                  earth.position[1] + ship_orbit_height * math.sin(ship_phase), 0.0], \
                 [earth.velocity[0] + ship_vel * math.cos(ship_phase + math.pi/2), \
                  earth.velocity[1] + ship_vel * math.sin(ship_phase + math.pi/2), 0.0], 1e8, 1e4)
 
-    bodies = [earth, ship, moon]
-    C, V = center_offset(bodies)
-    earth.position += C
-    earth.velocity += V
-
-    return 0.024 * 3600, 6.67428e-11, bodies
+    return 0.024 * 3600, 6.67428e-11, [earth, ship, moon]
 
 def solar_system():
     dt = 24 * 3600
@@ -113,9 +120,7 @@ def solar_system():
 
 def main():
     dt, G, bodies = solar_system()
-    print center_offset(bodies)
-    simulate_leapfrog(bodies, 2*365, dt, G)
-    print center_offset(bodies)
-    draw_traces(bodies)
+    simulate_leapfrog(bodies, 3*365, dt, G)
+    draw_traces(bodies, False)
 
 main()
